@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
     // Check if the required arguments are specified
     if (argc != 3) {
         fprintf(stderr, "Usage: writer <writefile> <writestr>\n");
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
     // Get the path to the writefile file
@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
         openlog("writer", LOG_CONS | LOG_PID, LOG_USER);
         syslog(LOG_ERR, "Error creating file %s: %m", writefile);
         closelog();
-        exit(EXIT_FAILURE);
+	return 1;
     }
     fprintf(file, "%s", writestr);
     fclose(file);
@@ -40,10 +40,10 @@ int main(int argc, char *argv[]) {
         syslog(LOG_ERR, "Error checking file existence for %s: %m", writefile);
         closelog();
         fprintf(stderr, "Error: Could not create file %s\n", writefile);
-        exit(EXIT_FAILURE);
+	return 1;
     }
 
     // Success!
-    return EXIT_SUCCESS;
+    return 0;
 }
 
