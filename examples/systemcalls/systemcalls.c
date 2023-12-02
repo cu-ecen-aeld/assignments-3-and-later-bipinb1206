@@ -1,4 +1,7 @@
 #include "systemcalls.h"
+#include <stdlib.h> 
+#include <unistd.h>   // For fork and execv
+#include <sys/wait.h> // For waitpid
 
 /**
  * @param cmd the command to execute with system()
@@ -17,7 +20,13 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+    int result = system(cmd);
+    
+    if(result == 0) {
+    	return true;
+    } else {
+    	return false;
+    }
 }
 
 /**
@@ -59,9 +68,44 @@ bool do_exec(int count, ...)
  *
 */
 
+    command[i] = NULL; // Set the last element to NULL as required by execv
     va_end(args);
 
-    return true;
+    pid_t child_pid = fork();
+
+    if (child_pid == -1) {
+        perror("Fork failed");
+        return false;
+    }
+
+    if (child_pid == 0) {
+        // Child process
+        if (execv(command[0], command) == -1) {
+            perror("Execv failed");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process
+        int status;
+        if (waitpid(child_pid, &status, 0) == -1) {
+            perror("Waitpid failed");
+            return false;
+        }
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            // Child process exited successfully
+            return true;
+        } else {
+            // Child process exited with an error
+            return false;
+        }
+    }
+    
+    va_end(args);
+
+
+   return true;
+    
 }
 
 /**
