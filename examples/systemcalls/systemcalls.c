@@ -2,6 +2,7 @@
 #include <stdlib.h> 
 #include <unistd.h>   // For fork and execv
 #include <sys/wait.h> // For waitpid
+#include <fcntl.h> 
 
 /**
  * @param cmd the command to execute with system()
@@ -138,6 +139,51 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
     va_end(args);
+pid_t child_pid = fork();
+
+    if (child_pid == -1) {
+        perror("Fork failed");
+        return false;
+    }
+
+    if (child_pid == 0) {
+        // Child process
+        // Set environment variable HOME to /home/bipinb
+        if (setenv("HOME", "/home/bipinb", 1) == -1) {
+            perror("Setenv failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect standard output to the specified file
+        int fd = creat(outputfile, 0644);
+        if (fd == -1) {
+            perror("Creat failed");
+            exit(EXIT_FAILURE);
+        }
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+
+        // Execute the command
+        if (execv(command[0], command) == -1) {
+            perror("Execv failed");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process
+        int status;
+        if (waitpid(child_pid, &status, 0) == -1) {
+            perror("Waitpid failed");
+            return false;
+        }
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            // Child process exited successfully
+            return true;
+        } else {
+            // Child process exited with an error
+            return false;
+        }
+    }
 
     return true;
 }
