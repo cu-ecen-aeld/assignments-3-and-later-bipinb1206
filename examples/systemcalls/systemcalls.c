@@ -1,4 +1,7 @@
 #include "systemcalls.h"
+#include <stdlib.h> 
+#include <unistd.h>   // For fork and execv
+#include <sys/wait.h> // For waitpid
 
 /**
  * @param cmd the command to execute with system()
@@ -17,17 +20,14 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    int status = system(cmd);
-    if (status != (-1)){
-	return true;
-
-    }else {
-	return false;
+    int result = system(cmd);
+    
+    if(result == 0) {
+    	return true;
+    } else {
+    	return false;
     }
-
-    return true;
 }
-
 
 /**
 * @param count -The numbers of variables passed to the function. The variables are command to execute.
@@ -47,7 +47,7 @@ bool do_exec(int count, ...)
 {
     va_list args;
     va_start(args, count);
-/*    char * command[count+1];
+    char * command[count+1];
     int i;
     for(i=0; i<count; i++)
     {
@@ -57,7 +57,7 @@ bool do_exec(int count, ...)
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
     command[count] = command[count];
-*/
+
 /*
  * TODO:
  *   Execute a system command by calling fork, execv(),
@@ -67,45 +67,46 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-    // Extract command and arguments
-    char *cmd = va_arg(args, char *);
-    char **cmd_args = malloc(sizeof(char *) * (count + 1));
 
-    if (cmd_args == NULL) {
-        va_end(args);
+    command[i] = NULL; // Set the last element to NULL as required by execv
+    va_end(args);
+
+    pid_t child_pid = fork();
+
+    if (child_pid == -1) {
+        perror("Fork failed");
         return false;
     }
 
-    cmd_args[0] = cmd;
-    for (int i = 1; i < count; i++) {
-        cmd_args[i] = va_arg(args, char *);
-    }
-    cmd_args[count] = NULL; 
-
-    pid_t pid = fork();
-    if (pid == -1) {
-        free(cmd_args);
-        va_end(args);
-        return false;
-    } else if (pid == 0) {
-        execv(cmd, cmd_args);
-        exit(EXIT_FAILURE);
+    if (child_pid == 0) {
+        // Child process
+        if (execv(command[0], command) == -1) {
+            perror("Execv failed");
+            exit(EXIT_FAILURE);
+        }
     } else {
+        // Parent process
         int status;
-        waitpid(pid, &status, 0);
-        free(cmd_args);
-        va_end(args);
-        return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
+        if (waitpid(child_pid, &status, 0) == -1) {
+            perror("Waitpid failed");
+            return false;
+        }
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            // Child process exited successfully
+            return true;
+        } else {
+            // Child process exited with an error
+            return false;
+        }
     }
+    
+    va_end(args);
 
 
-
-
-/*    va_end(args);
-
-    return true;
-*/
-    }
+   return true;
+    
+}
 
 /**
 * @param outputfile - The full path to the file to write with command output.
@@ -116,6 +117,18 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 {
     va_list args;
     va_start(args, count);
+    char * command[count+1];
+    int i;
+    for(i=0; i<count; i++)
+    {
+        command[i] = va_arg(args, char *);
+    }
+    command[count] = NULL;
+    // this line is to avoid a compile warning before your implementation is complete
+    // and may be removed
+    command[count] = command[count];
+
+
 /*
  * TODO
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
@@ -123,43 +136,6 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-    
-    char *cmd = va_arg(args, char *);
-    char **cmd_args = malloc(sizeof(char *) * (count + 1));
-
-    if (cmd_args == NULL) {
-        va_end(args);
-        return false;
-    }
-
-    cmd_args[0] = cmd;
-    for (int i = 1; i < count; i++) {
-        cmd_args[i] = va_arg(args, char *);
-    }
-    cmd_args[count] = NULL; 
-
-
-    pid_t pid = fork();
-    if (pid == -1) {
-        free(cmd_args);
-        va_end(args);
-        return false;
-    } else if (pid == 0) {
-   	 close(STDOUT_FILENO);
-	 int out_fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 644);
-	 if (out_fd != STDOUT_FILENO) {
-        	exit(EXIT_FAILURE);
-    }
-        execv(cmd, cmd_args);
-        exit(EXIT_FAILURE);
-    } else {
-        int status;
-        waitpid(pid, &status, 0);
-        free(cmd_args);
-        va_end(args);
-        return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
-    }
-
 
     va_end(args);
 
